@@ -1,0 +1,26 @@
+# Build output
+build/
+cmake-build-*/
+out/
+
+# Downloaded dependencies
+third_party/onnxruntime/
+
+# Local scratch copies
+Source copy/
+
+# Tool output
+morph*.png
+__pycache__/
+
+# OS / editors
+.DS_Store
+.vscode/
+.idea/
+*.xcworkspace
+xcuserdata/
+
+# Training data 
+materials/sid_dataset/
+materials/sid_dataset.zip
+EOF

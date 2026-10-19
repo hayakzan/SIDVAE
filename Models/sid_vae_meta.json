@@ -1,0 +1,12 @@
+{
+  "latent_dim": 3,
+  "cond_dim": 6,
+  "cond_order": [
+    "pw_norm",
+    "log_f0",
+    "vel01",
+    "wave_tri",
+    "wave_saw",
+    "wave_pulse"
+  ]
+}
