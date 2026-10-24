@@ -1,4 +1,4 @@
-# SIDVae
+# SIDVAE
 
 A C++/JUCE synthesizer plugin (AU / VST3 / Standalone) that generates single-cycle waveforms via a conditional Variational Autoencoder (cVAE) trained on MOS 6581/8580 SID recordings (rendered from Plogue chipsynth C64). Waveform interpolation is performed directly in the decoder's conditioning and latent space prior to inference rather than crossfading fixed audio tables.
 
