@@ -4,12 +4,6 @@
 
 To verify that the decoder is learning a smooth, continuous manifold rather than acting as a discrete waveform crossfader, `tools/inspect_model.py` evaluates interpolation behavior across steps:
 
-* **Nonlinearity ($\text{nl}$):** Computes the relative geometric distance between the decoded output and a linear baseline in sample space:
-  $$ \text{nl} = \frac{\|d(t) - ((1-t)d_0 + td_1)\|}{\|d_1 - d_0\|} $$
-  A value of `0` indicates a trivial linear crossfade; non-zero values confirm the decoder is generating continuous hybrid timbres in-between.
-* **Spectral Envelope Distance:** Repeats the metric on phase-insensitive FFT harmonic magnitudes to track timbral progression.
-* **Step-Size Analysis:** Measures inter-step Euclidean distances ($\Delta t$) to detect latent space discontinuities or abrupt structural "jumps" across the morph trajectory.
-
 Run the diagnostic against your weights with:
 ```bash
 python tools/inspect_model.py Models/sid_vae_decoder.onnx --a tri --b saw --plot morph.png
@@ -24,14 +18,18 @@ from pathlib import Path
 import numpy as np
 import onnxruntime as ort
 
-DEFAULT_ORDER = ["pw_norm", "log_f0", "vel01", "wave_tri", "wave_saw", "wave_pulse"]
+DEFAULT_ORDER = ["pw_norm", "log_f0", "vel01", "wave_tri", "wave_saw", "wave_pulse"] # the parameters as they appear in the model
 WAVES = {"tri": 0, "saw": 1, "pulse": 2}
-
 
 def load_meta(path):
     meta = {"latent_dim": 3, "cond_dim": 6, "cond_order": DEFAULT_ORDER}
+    
+    # Load metadata from a JSON file if provided and override defaults
     if path and Path(path).exists():
         meta.update(json.loads(Path(path).read_text()))
+    # added validation
+    if len(meta["cond_order"]) != meta["cond_dim"]:
+        raise SystemExit(f"cond_order has {len(meta['cond_order'])} names but cond_dim is {meta['cond_dim']}")
     return meta
 
 
