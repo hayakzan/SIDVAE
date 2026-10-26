@@ -32,7 +32,7 @@ def load_meta(path):
         raise SystemExit(f"cond_order has {len(meta['cond_order'])} names but cond_dim is {meta['cond_dim']}")
     return meta
 
-
+## Simulates turning the morph knob, provides 6 numbers in particular order
 def build_cond(meta, pw, f0, vel, weights):
     vals = {
         "pw_norm": pw,
@@ -41,40 +41,58 @@ def build_cond(meta, pw, f0, vel, weights):
         "wave_saw": weights[1],
         "wave_pulse": weights[2],
     }
-    lf0 = math.log(max(1.0, f0))
-    if "log_f0_mean" in meta and "log_f0_std" in meta and meta["log_f0_std"]:
+    lf0 = math.log(max(1.0, f0)) #log of f0 (HZ to log scale), with a guard against zero and negative values
+    # first two conditionals checking is the data in meta? the third is a guard against dividing by 0 below.
+    # note the shorthand also skips None whereas != 0 would let it in
+    if "log_f0_mean" in meta and "log_f0_std" in meta and meta["log_f0_std"]: 
+        # standardize lf0
         lf0 = (lf0 - meta["log_f0_mean"]) / meta["log_f0_std"]
     vals["log_f0"] = lf0
-    unknown = [k for k in meta["cond_order"] if k not in vals]
-    return np.array([vals.get(k, 0.0) for k in meta["cond_order"]], dtype=np.float32), unknown
+    return np.array([vals.get(k, 0.0) for k in meta["cond_order"]], dtype=np.float32)
 
 
 class Decoder:
+    # Wraps the ONNIX model for the rest of the script to use as a func
     def __init__(self, path, latent_dim, cond_dim):
+        # load the model, pull the weights (implicitly, ONNX runtime actually pulls the weights)
         self.sess = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
         self.inputs = self.sess.get_inputs()
-        self.L, self.C = latent_dim, cond_dim
+        # name of the first output
         self.out_name = self.sess.get_outputs()[0].name
 
         def per_item(shape):
-            dims = [d for d in shape[1:]] if len(shape) > 1 else list(shape)
+            # this helper returns how many numbers does one example need for this input. 
+            # this also allows the model to distinguish between latent and conditional inputs since sizes are more reliable in that context.
+            # but we also have names as fallback.
+            
+            # first dim is batch size so drop it
+            dims = [d for d in shape[1:]] if len(shape) > 1 else list(shape) 
+            # if there is still a dimension that is not a positive integer, we won't know the size, so return None
             if any(not isinstance(d, int) or d <= 0 for d in dims):
                 return None
+            # Multiply the remaining dimensions: [3] -> 3, [2, 3] -> 6. Nothing left -> None.
             return int(np.prod(dims)) if dims else None
 
-        if len(self.inputs) == 2:
+        if len(self.inputs) == 2: # Two inputs: one is z, the other cond. Work out which is which.
+            # size per example of each input: [3, 6] for this model.
             sizes = [per_item(i.shape) for i in self.inputs]
+             # Lowercased input names, for the name-based fallback: ["z", "cond"].
             names = [i.name.lower() for i in self.inputs]
             zi = 0
+
             if latent_dim != cond_dim and None not in sizes:
+                # Decide by size. Works only if both sizes are known
                 zi = 0 if sizes[0] == latent_dim else 1
             elif ("cond" in names[0] or "label" in names[0]) and not ("cond" in names[1] or "label" in names[1]):
-                zi = 1
+                # Fallback: decide by name.
+                zi = 1 
+
             self.z_in, self.c_in = self.inputs[zi], self.inputs[1 - zi]
             self.layout = "two"
-        elif len(self.inputs) == 1:
+
+        elif len(self.inputs) == 1: # the model expects z and cond glued together into one array
             self.layout = "concat"
-        else:
+        else: # anything else - stop
             raise SystemExit(f"expected 1 or 2 inputs, got {len(self.inputs)}")
 
     def describe(self):
