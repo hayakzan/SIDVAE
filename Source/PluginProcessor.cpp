@@ -17,35 +17,16 @@ namespace
     const juce::String kDefaultModelFile = "sid_vae_decoder.onnx";
     const juce::String kMetaFile         = "sid_vae_meta.json";
 
-    // Where the decoder is looked for, in order.
-    juce::Array<juce::File> candidateModelDirs()
-    {
-        juce::Array<juce::File> dirs;
-
-        // 1. Explicit override, handy while experimenting with different models.
-        const auto env = juce::SystemStats::getEnvironmentVariable ("SIDVAE_MODEL_DIR", {});
-        if (env.isNotEmpty() && juce::File::isAbsolutePath (env))
-            dirs.add (juce::File (env));
-
-        // 2. Inside the plugin bundle (CMake copies Models/ here).
-        //    macOS: <bundle>/Contents/MacOS/<binary>  ->  <bundle>/Contents/Resources/Models
-        const auto exeDir = juce::File::getSpecialLocation (juce::File::currentExecutableFile).getParentDirectory();
-        dirs.add (exeDir.getParentDirectory().getChildFile ("Resources").getChildFile ("Models"));
-        dirs.add (exeDir.getChildFile ("Models"));
-
-        // 3. Per-user install location.
-        auto userData = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory);
-       #if JUCE_MAC
-        userData = userData.getChildFile ("Application Support");
-       #endif
-        dirs.add (userData.getChildFile ("SIDVae").getChildFile ("Models"));
-
-        // 4. The source tree's Models/ folder (development builds).
-       #ifdef SIDVAE_DEV_MODEL_DIR
-        dirs.add (juce::File (SIDVAE_DEV_MODEL_DIR));
-       #endif
-        return dirs;
-    }
+// CMake copies the repo's Models/ folder into the bundle
+juce::File modelDir()
+{
+    const auto exeDir = juce::File::getSpecialLocation (juce::File::currentExecutableFile).getParentDirectory();
+   #if JUCE_MAC
+    return exeDir.getParentDirectory().getChildFile ("Resources").getChildFile ("Models");  // Contents/Resources/Models
+   #else
+    return exeDir.getChildFile ("Models");                                                  // next to the binary
+   #endif
+}
 
     struct ModelMeta
     {
@@ -175,43 +156,14 @@ private:
     void loadModel()
     {
         juce::File modelDir;
-        for (const auto& dir : candidateModelDirs())
+        const auto dir = modelDir();
+        if (! dir.getChildFile (kDefaultModelFile).existsAsFile())
         {
-            if (dir.getChildFile (kDefaultModelFile).existsAsFile()
-                || dir.getChildFile (kMetaFile).existsAsFile())
-            {
-                modelDir = dir;
-                break;
-            }
-        }
-
-        if (modelDir == juce::File())
-        {
-            loadError = "no " + kDefaultModelFile + " found (see README: Model files)";
+            loadError = "no " + kDefaultModelFile + " in " + dir.getFullPathName();
             refreshStatus();
             return;
         }
-
-        // Meta next to the model, or one level up 
-        auto metaFile = modelDir.getChildFile (kMetaFile);
-        if (! metaFile.existsAsFile())
-            metaFile = modelDir.getParentDirectory().getChildFile (kMetaFile);
-
-        if (metaFile.existsAsFile())
-        {
-            juce::String metaErr;
-            if (! parseMeta (metaFile, meta, metaErr))
-            {
-                loadError = metaErr;
-                refreshStatus();
-                return;
-            }
-        }
-        else
-        {
-            metaNote = "no " + kMetaFile + ", using defaults";
-        }
-
+        auto metaFile = dir.getChildFile (kMetaFile);
         const auto modelFile = modelDir.getChildFile (meta.decoderFile);
         const sidvae::SidVaeDecoder::Config cfg { meta.latentDim, meta.condDim, kTableLen };
 
