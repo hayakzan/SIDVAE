@@ -155,7 +155,6 @@ private:
 
     void loadModel()
     {
-        juce::File modelDir;
         const auto dir = modelDir();
         if (! dir.getChildFile (kDefaultModelFile).existsAsFile())
         {
@@ -163,8 +162,24 @@ private:
             refreshStatus();
             return;
         }
-        auto metaFile = dir.getChildFile (kMetaFile);
-        const auto modelFile = modelDir.getChildFile (meta.decoderFile);
+
+        const auto metaFile = dir.getChildFile (kMetaFile);
+        if (metaFile.existsAsFile())
+        {
+            juce::String metaErr;
+            if (! parseMeta (metaFile, meta, metaErr))
+            {
+                loadError = metaErr;
+                refreshStatus();
+                return;
+            }
+        }
+        else
+        {
+            metaNote = "no " + kMetaFile + ", using defaults";
+        }
+
+        const auto modelFile = dir.getChildFile (meta.decoderFile);
         const sidvae::SidVaeDecoder::Config cfg { meta.latentDim, meta.condDim, kTableLen };
 
         std::string err;
