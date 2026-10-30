@@ -1,8 +1,11 @@
 #pragma once
-// Lock-free single-producer / single-consumer triple buffer for wavetables.
-// The decode thread writes into its own buffer and publishes; the audio thread
-// picks up the newest complete table at the start of a block. Neither side ever
-// waits on the other, and nothing allocates after prepare().
+// Lock-free triple buffer for wavetables.
+// The decode thread writes into its own buffer and publishes,
+// the audio thread picks up the newest complete table at the start of a block.
+// Neither side ever waits on the other, and nothing allocates after prepare().
+
+// How it works
+// https://www.yigitkolat.com/explainers/triple-buffer-process.html
 
 #include <array>
 #include <atomic>
