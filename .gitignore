@@ -20,7 +20,9 @@ __pycache__/
 *.xcworkspace
 xcuserdata/
 
-# Training data 
-materials/sid_dataset/
-materials/sid_dataset.zip
+# Rendered dataset and REAPER files/backups 
+training/data/
+training/Backups/
+training/datacreation.RPP
+
 EOF
